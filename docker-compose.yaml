@@ -1,0 +1,79 @@
+services:
+  postgres:
+    build:
+      dockerfile: postgres/Dockerfile
+    shm_size: 128mb
+    environment:
+      POSTGRES_DB: "postgres"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "password"
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=ru-RU"
+    volumes:
+      - ./postgres/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      - ./pgdata:/var/lib/postgresql/data
+      - ./pgbackups:/backups
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - ./xsquare/etc/nginx/conf.d:/etc/nginx/conf.d/:ro
+      - ./xsquare/var/www:/var/www
+    depends_on:
+      - "pghs"
+      - "xrad"
+      - "xreports"
+
+  pghs:
+    image: alpine
+    command:
+      - '/xsquare.pghs/pghs'
+    working_dir: /xsquare.pghs
+    volumes:
+      - ./xsquare/usr/local/xsquare.pghs:/xsquare.pghs
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  xrad:
+    image: alpine
+    command:
+      - '/xsquare.xrad/xrad'
+    working_dir: /xsquare.xrad
+    volumes:
+      - ./xsquare/usr/local/xsquare.xrad:/xsquare.xrad
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  xdac:
+    image: alpine
+    command:
+      - '/xsquare.xdac/xdac'
+    working_dir: /xsquare.xdac
+    volumes:
+      - ./xdac/usr/local/xsquare.xdac/:/xsquare.xdac
+    ports:
+      - "8887:8887"
+    depends_on:
+      postgres:
+        condition: service_healthy          
+
+  xreports:
+    image: alpine
+    command:
+      - '/xsquare.xreports/xreports'
+    working_dir: /xsquare.xreports
+    volumes:
+      - ./xreport/usr/local/xsquare.xreports/:/xsquare.xreports
+      - ./xreports_data/:/tmp/xreports
+    ports:
+      - "8886:8886"
+
